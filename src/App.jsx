@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import {
   Home, Layers, Github, Linkedin, Globe, Mail, Search, GraduationCap, ExternalLink, Moon, Sun, Menu, X,
 } from 'lucide-react'
@@ -223,7 +223,7 @@ function MikuGame() {
             {gameOver && score === highScore && score > 0 && (
               <p style={{ color: 'var(--pink)', fontWeight: 700, marginTop: 8 }}>🎉 NEW HIGH SCORE! 🎉</p>
             )}
-            <button className="pbtn" onClick={startGame}>
+            <button className="pbtn" onClick={startGame} onTouchEnd={startGame}>
               {gameOver ? 'Restart' : 'Start'}
             </button>
           </div>
@@ -543,6 +543,7 @@ export default function App() {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : false
   })
+  const tabsRef = useRef(null)
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode))
@@ -554,8 +555,19 @@ export default function App() {
       if (window.innerWidth > 960 && tab === 'details') {
         setTab('projects')
       }
+      
+      // Check if tabs need scroll mask
+      if (tabsRef.current) {
+        const hasScroll = tabsRef.current.scrollWidth > tabsRef.current.clientWidth
+        if (hasScroll) {
+          tabsRef.current.classList.add('has-scroll')
+        } else {
+          tabsRef.current.classList.remove('has-scroll')
+        }
+      }
     }
 
+    handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [tab])
@@ -593,7 +605,7 @@ export default function App() {
             }} />
             <div className="status-indicator" title="Online"></div>
           </div>
-          <div className="tabs" role="tablist">
+          <div className="tabs" role="tablist" ref={(el) => { tabsRef.current = el }}>
             {TABS.map(([id, label]) => (
               <button key={id} className="tab" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
             ))}

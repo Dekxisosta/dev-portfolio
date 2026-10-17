@@ -40,8 +40,8 @@ function MikuGame() {
     const saved = localStorage.getItem('mikuGameHighScore')
     return saved ? parseInt(saved) : 0
   })
-  const [timeLeft, setTimeLeft] = useState(30)
-  const [moles, setMoles] = useState(Array(16).fill({ active: false, whacked: false, type: 'miku' }))
+  const [timeLeft, setTimeLeft] = useState(60)
+  const [moles, setMoles] = useState(Array(9).fill({ active: false, whacked: false, type: 'miku' }))
   const [feverMode, setFeverMode] = useState(false)
   const [feverProgress, setFeverProgress] = useState(0)
   const [feverTimeLeft, setFeverTimeLeft] = useState(0)
@@ -108,7 +108,6 @@ function MikuGame() {
       setTimeLeft(prev => {
         if (prev <= 1) {
           setGameOver(true)
-          stopSound('background')
           return 0
         }
         return prev - 1
@@ -253,15 +252,15 @@ function MikuGame() {
     setGameStarted(true)
     setGameOver(false)
     setScore(0)
-    setTimeLeft(30)
-    setMoles(Array(16).fill({ active: false, whacked: false, type: 'miku' }))
+    setTimeLeft(60)
+    setMoles(Array(9).fill({ active: false, whacked: false, type: 'miku' }))
     setFeverMode(false)
     setFeverProgress(0)
     setFeverTimeLeft(0)
     
     // Play start sound and background music
     playSound('start')
-    playSound('background')
+    setTimeout(() => playSound('background'), 500)
   }
 
   return (

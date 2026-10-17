@@ -113,7 +113,7 @@ svg{flex:none}
 .brick{position:absolute;bottom:30px;width:30px;height:30px}
 .leek{position:absolute;width:24px;height:24px}
 .ground{position:absolute;bottom:0;left:0;right:0;height:30px;background:var(--line)}
-.whack-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:12px;max-width:420px;margin:0 auto;padding:20px;position:relative;min-height:420px}
+.whack-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:12px;max-width:420px;margin:0 auto;padding:20px;position:relative;min-height:420px}
 .whack-hole{position:relative;width:100%;aspect-ratio:1;background:var(--b1);border:3px solid var(--line);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:transform .1s;outline:none;-webkit-tap-highlight-color:transparent}
 .whack-hole:active{transform:scale(1.25)}
 .whack-hole:focus{outline:none}

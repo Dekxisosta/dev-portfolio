@@ -55,9 +55,12 @@ function MikuGame() {
     fever: null,
     start: null,
   })
+  const soundsInitializedRef = useRef(false)
 
-  // Initialize sounds
-  useEffect(() => {
+  // Initialize sounds on first user interaction
+  const initSounds = () => {
+    if (soundsInitializedRef.current) return
+    
     soundsRef.current = {
       background: new Audio('/sounds/game/background.mp3'),
       whack: new Audio('/sounds/game/whack.mp3'),
@@ -72,7 +75,12 @@ function MikuGame() {
       soundsRef.current.background.loop = true
       soundsRef.current.background.volume = 0.3
     }
+    
+    soundsInitializedRef.current = true
+  }
 
+  // Cleanup sounds on unmount
+  useEffect(() => {
     return () => {
       // Cleanup: pause all sounds
       Object.values(soundsRef.current).forEach(sound => {
@@ -108,6 +116,7 @@ function MikuGame() {
       setTimeLeft(prev => {
         if (prev <= 1) {
           setGameOver(true)
+          stopSound('background')
           return 0
         }
         return prev - 1
@@ -249,6 +258,9 @@ function MikuGame() {
   }
 
   const startGame = () => {
+    // Initialize sounds on first interaction (required for mobile)
+    initSounds()
+    
     setGameStarted(true)
     setGameOver(false)
     setScore(0)

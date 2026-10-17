@@ -231,10 +231,12 @@ function MikuGame() {
 
         <div className={`whack-grid ${feverMode ? 'fever-mode' : ''}`}>
           {moles.map((mole, index) => (
-            <div
+            <button
               key={index}
               className={`whack-hole ${mole.active ? 'active' : ''}`}
               onClick={() => whackMiku(index)}
+              type="button"
+              aria-label={mole.active ? `Whack ${mole.type}` : 'Empty hole'}
             >
               <div className="hole-bg"></div>
               {mole.active && !mole.whacked && mole.type === 'miku' && (
@@ -270,7 +272,7 @@ function MikuGame() {
                   </svg>
                 </div>
               )}
-            </div>
+            </button>
           ))}
         </div>
       </div>

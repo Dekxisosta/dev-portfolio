@@ -46,6 +46,60 @@ function MikuGame() {
   const [feverProgress, setFeverProgress] = useState(0)
   const [feverTimeLeft, setFeverTimeLeft] = useState(0)
 
+  // Sound effects
+  const soundsRef = useRef({
+    background: null,
+    whack: null,
+    sparkle: null,
+    bomb: null,
+    fever: null,
+    start: null,
+  })
+
+  // Initialize sounds
+  useEffect(() => {
+    soundsRef.current = {
+      background: new Audio('/sounds/game/background.mp3'),
+      whack: new Audio('/sounds/game/whack.mp3'),
+      sparkle: new Audio('/sounds/game/sparkle.mp3'),
+      bomb: new Audio('/sounds/game/bomb.mp3'),
+      fever: new Audio('/sounds/game/fever.mp3'),
+      start: new Audio('/sounds/game/start.mp3'),
+    }
+    
+    // Set background music to loop
+    if (soundsRef.current.background) {
+      soundsRef.current.background.loop = true
+      soundsRef.current.background.volume = 0.3
+    }
+
+    return () => {
+      // Cleanup: pause all sounds
+      Object.values(soundsRef.current).forEach(sound => {
+        if (sound) {
+          sound.pause()
+          sound.currentTime = 0
+        }
+      })
+    }
+  }, [])
+
+  const playSound = (soundName) => {
+    const sound = soundsRef.current[soundName]
+    if (sound) {
+      sound.currentTime = 0
+      sound.play().catch(err => console.log('Sound play failed:', err))
+    }
+  }
+
+  const stopSound = (soundName) => {
+    const sound = soundsRef.current[soundName]
+    if (sound) {
+      sound.pause()
+      sound.currentTime = 0
+    }
+  }
+
   useEffect(() => {
     if (!gameStarted || gameOver) return
 
@@ -54,6 +108,7 @@ function MikuGame() {
       setTimeLeft(prev => {
         if (prev <= 1) {
           setGameOver(true)
+          stopSound('background')
           return 0
         }
         return prev - 1
@@ -137,6 +192,7 @@ function MikuGame() {
     if (!feverMode && feverProgress >= 100) {
       setFeverMode(true)
       setFeverTimeLeft(5)
+      playSound('fever')
     }
   }, [feverProgress, feverMode])
 
@@ -147,8 +203,17 @@ function MikuGame() {
     
     if (mole.type === 'bomb') {
       // Hit a bomb - game over
+      playSound('bomb')
+      stopSound('background')
       setGameOver(true)
       return
+    }
+    
+    // Play appropriate sound
+    if (mole.type === 'gumi') {
+      playSound('sparkle')
+    } else {
+      playSound('whack')
     }
     
     // Calculate points
@@ -193,6 +258,10 @@ function MikuGame() {
     setFeverMode(false)
     setFeverProgress(0)
     setFeverTimeLeft(0)
+    
+    // Play start sound and background music
+    playSound('start')
+    playSound('background')
   }
 
   return (

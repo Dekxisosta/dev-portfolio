@@ -45,66 +45,211 @@ function MikuGame() {
   const [feverMode, setFeverMode] = useState(false)
   const [feverProgress, setFeverProgress] = useState(0)
   const [feverTimeLeft, setFeverTimeLeft] = useState(0)
+  const [endReason, setEndReason] = useState(null) // 'time' | 'bomb'
+  const [popups, setPopups] = useState([])  // "+10" labels floating from a hole
+  const [banners, setBanners] = useState([]) // fever / score milestone overlays
+  const idRef = useRef(0)
+  const milestoneRef = useRef(0)
+  const endHandledRef = useRef(false)
+  const canvasRef = useRef(null)
+  const containerRef = useRef(null)
+  const particlesRef = useRef([])
+  const rafRef = useRef(null)
+  const sizeRef = useRef({ w: 0, h: 0, dpr: 1 })
 
-  // Sound effects
-  const soundsRef = useRef({
-    background: null,
-    whack: null,
-    sparkle: null,
-    bomb: null,
-    fever: null,
-    start: null,
-  })
+  // ---------- Overlays ----------
+  const addPopup = (index, text, kind) => {
+    const id = ++idRef.current
+    setPopups(prev => [...prev, { id, index, text, kind }])
+    setTimeout(() => setPopups(prev => prev.filter(p => p.id !== id)), 800)
+  }
+
+  const addBanner = (kind, text) => {
+    const id = ++idRef.current
+    setBanners(prev => [...prev, { id, kind, text }])
+    setTimeout(() => setBanners(prev => prev.filter(b => b.id !== id)), kind === 'score-big' ? 1800 : 1400)
+  }
+
+  // ---------- Confetti (canvas, no dependency) ----------
+  const COLORS = ['#ff7ab8', '#a3c7dd', '#7289da', '#ffd966', '#ffffff', '#7be0c3']
+
+  const spawnConfetti = (x, y, count, a0, a1, speed) => {
+    for (let i = 0; i < count; i++) {
+      const a = a0 + Math.random() * (a1 - a0)
+      const v = speed * (0.5 + Math.random() * 0.7)
+      particlesRef.current.push({
+        x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        size: 6 + Math.random() * 6, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.4,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        round: Math.random() < 0.3, life: 0, max: 110 + Math.random() * 60,
+      })
+    }
+  }
+
+  const runConfetti = () => {
+    if (rafRef.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const tick = () => {
+      const { w, h, dpr } = sizeRef.current
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, w, h)
+      particlesRef.current = particlesRef.current.filter(p => p.life < p.max && p.y < h + 30)
+      for (const p of particlesRef.current) {
+        p.vy += 0.2; p.vx *= 0.99; p.vy *= 0.99
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++
+        ctx.globalAlpha = Math.min(1, (p.max - p.life) / (p.max * 0.3))
+        ctx.fillStyle = p.color
+        ctx.save()
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.rot)
+        if (p.round) { ctx.beginPath(); ctx.arc(0, 0, p.size / 2.2, 0, 6.28); ctx.fill() }
+        else ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2)
+        ctx.restore()
+      }
+      ctx.globalAlpha = 1
+      if (particlesRef.current.length) rafRef.current = requestAnimationFrame(tick)
+      else { ctx.clearRect(0, 0, w, h); rafRef.current = null }
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }
+
+  const fireConfetti = (kind) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const w = window.innerWidth, h = window.innerHeight
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr }
+    sizeRef.current = { w, h, dpr }
+    const D = Math.PI / 180
+
+    if (kind === 'highscore') {
+      // cannons from both bottom corners + a shower from the top, in three waves
+      ;[0, 450, 900].forEach(delay => setTimeout(() => {
+        spawnConfetti(0, h, 45, -80 * D, -35 * D, h / 28)
+        spawnConfetti(w, h, 45, -145 * D, -100 * D, h / 28)
+        spawnConfetti(w / 2, -10, 35, 60 * D, 120 * D, 4)
+        runConfetti()
+      }, delay))
+    } else {
+      // milestone burst out of the game board
+      const r = containerRef.current ? containerRef.current.getBoundingClientRect() : { left: w / 2, top: h / 2, width: 0, height: 0 }
+      const x = r.left + r.width / 2, y = Math.max(40, Math.min(h - 40, r.top + r.height * 0.45))
+      spawnConfetti(x, y, 70, 0, 360 * D, 11)
+      runConfetti()
+    }
+    runConfetti()
+  }
+
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
+
+  // Sound effects — Web Audio API so every sound works on mobile (iOS/Android)
+  // once the context is unlocked by the Start tap. Per-sound <audio> elements
+  // can't be started from timers/effects on mobile, which is why sounds failed.
+  const audioCtxRef = useRef(null)
+  const buffersRef = useRef({})
+  const bgRef = useRef(null)
+  const bgGainRef = useRef(null)
   const soundsInitializedRef = useRef(false)
 
-  // Initialize sounds on first user interaction
+  const SFX_FILES = {
+    whack: '/sounds/game/whack.mp3',
+    sparkle: '/sounds/game/sparkle.mp3',
+    bomb: '/sounds/game/bomb.mp3',
+    fever: '/sounds/game/fever.mp3',
+    start: '/sounds/game/start.mp3',
+    end: '/sounds/game/end.mp3',
+    confetti: '/sounds/game/confetti.mp3',
+  }
+
+  // Must be called from inside a user gesture (the Start button tap)
   const initSounds = () => {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return
+
+    // iOS 16.4+: play as "playback" so the silent switch doesn't mute the game
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback' } catch (e) {}
+
+    if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
+    const ctx = audioCtxRef.current
+    if (ctx.state !== 'running') ctx.resume().catch(() => {})
+
     if (soundsInitializedRef.current) return
-    
-    soundsRef.current = {
-      background: new Audio('/sounds/game/background.mp3'),
-      whack: new Audio('/sounds/game/whack.mp3'),
-      sparkle: new Audio('/sounds/game/sparkle.mp3'),
-      bomb: new Audio('/sounds/game/bomb.mp3'),
-      fever: new Audio('/sounds/game/fever.mp3'),
-      start: new Audio('/sounds/game/start.mp3'),
-    }
-    
-    // Set background music to loop
-    if (soundsRef.current.background) {
-      soundsRef.current.background.loop = true
-      soundsRef.current.background.volume = 0.3
-    }
-    
     soundsInitializedRef.current = true
+
+    // Unlock the context with a silent tick inside the gesture
+    try {
+      const src = ctx.createBufferSource()
+      src.buffer = ctx.createBuffer(1, 1, 22050)
+      src.connect(ctx.destination)
+      src.start(0)
+    } catch (e) {}
+
+    // Background music: streamed <audio> routed through a gain node
+    // (iOS ignores audio.volume, so volume is set via GainNode)
+    const bg = new Audio('/sounds/game/background.mp3')
+    bg.loop = true
+    bg.preload = 'auto'
+    bg.setAttribute('playsinline', '')
+    try {
+      const gain = ctx.createGain()
+      gain.gain.value = 0.3
+      ctx.createMediaElementSource(bg).connect(gain)
+      gain.connect(ctx.destination)
+      bgGainRef.current = gain
+    } catch (e) {
+      bg.volume = 0.3
+    }
+    bgRef.current = bg
+
+    // Decode short effects into buffers
+    Object.entries(SFX_FILES).forEach(([name, url]) => {
+      buffersRef.current[name] = fetch(url)
+        .then(r => r.arrayBuffer())
+        .then(data => new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject)))
+        .catch(err => { console.log('Sound load failed:', name, err); return null })
+    })
   }
 
   // Cleanup sounds on unmount
   useEffect(() => {
     return () => {
-      // Cleanup: pause all sounds
-      Object.values(soundsRef.current).forEach(sound => {
-        if (sound) {
-          sound.pause()
-          sound.currentTime = 0
-        }
-      })
+      if (bgRef.current) bgRef.current.pause()
+      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {})
     }
   }, [])
 
   const playSound = (soundName) => {
-    const sound = soundsRef.current[soundName]
-    if (sound) {
-      sound.currentTime = 0
-      sound.play().catch(err => console.log('Sound play failed:', err))
+    const ctx = audioCtxRef.current
+    if (!ctx) return
+    if (ctx.state !== 'running') ctx.resume().catch(() => {})
+
+    if (soundName === 'background') {
+      const bg = bgRef.current
+      if (bg) {
+        bg.currentTime = 0
+        bg.play().catch(err => console.log('Sound play failed:', err))
+      }
+      return
     }
+
+    const pending = buffersRef.current[soundName]
+    if (!pending) return
+    pending.then(buffer => {
+      if (!buffer) return
+      const src = ctx.createBufferSource()
+      src.buffer = buffer
+      src.connect(ctx.destination)
+      src.start(0)
+    })
   }
 
   const stopSound = (soundName) => {
-    const sound = soundsRef.current[soundName]
-    if (sound) {
-      sound.pause()
-      sound.currentTime = 0
+    if (soundName === 'background' && bgRef.current) {
+      bgRef.current.pause()
+      bgRef.current.currentTime = 0
     }
   }
 
@@ -115,6 +260,7 @@ function MikuGame() {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
+          setEndReason('time')
           setGameOver(true)
           stopSound('background')
           return 0
@@ -188,12 +334,37 @@ function MikuGame() {
     }
   }, [gameStarted, gameOver, feverMode])
 
+  // Runs once per finished game: high score -> confetti, plain time-up -> end jingle
   useEffect(() => {
-    if (gameOver && score > highScore) {
+    if (!gameOver) { endHandledRef.current = false; return }
+    if (endHandledRef.current) return
+    endHandledRef.current = true
+
+    if (score > highScore) {
       setHighScore(score)
-      localStorage.setItem('mikuGameHighScore', score.toString())
+      try { localStorage.setItem('mikuGameHighScore', score.toString()) } catch (e) {}
+      fireConfetti('highscore')
+      if (endReason === 'time') playSound('confetti')
+    } else if (endReason === 'time') {
+      playSound('end')
     }
-  }, [gameOver, score, highScore])
+  }, [gameOver])
+
+  // Score milestones: every +100 (bigger + confetti on multiples of 500)
+  useEffect(() => {
+    if (!gameStarted || gameOver) return
+    const level = Math.floor(score / 100)
+    if (level <= milestoneRef.current) return
+    let big = 0
+    for (let l = milestoneRef.current + 1; l <= level; l++) if (l % 5 === 0) big = l
+    milestoneRef.current = level
+    if (big) {
+      addBanner('score-big', big * 100)
+      fireConfetti('burst')
+    } else {
+      addBanner('score', level * 100)
+    }
+  }, [score])
 
   useEffect(() => {
     // Check if fever mode should be activated
@@ -201,6 +372,7 @@ function MikuGame() {
       setFeverMode(true)
       setFeverTimeLeft(5)
       playSound('fever')
+      addBanner('fever', '🔥 FEVER x2!')
     }
   }, [feverProgress, feverMode])
 
@@ -213,6 +385,7 @@ function MikuGame() {
       // Hit a bomb - game over
       playSound('bomb')
       stopSound('background')
+      setEndReason('bomb')
       setGameOver(true)
       return
     }
@@ -234,6 +407,7 @@ function MikuGame() {
     }
     
     setScore(prev => prev + points)
+    addPopup(index, `+${points}`, mole.type === 'gumi' ? 'gumi' : 'miku')
     
     // Update fever progress (only if not in fever mode)
     if (!feverMode) {
@@ -269,10 +443,15 @@ function MikuGame() {
     setFeverMode(false)
     setFeverProgress(0)
     setFeverTimeLeft(0)
+    setEndReason(null)
+    setPopups([])
+    setBanners([])
+    milestoneRef.current = 0
     
     // Play start sound and background music
     playSound('start')
-    setTimeout(() => playSound('background'), 500)
+    // Called directly (not in a timer) so mobile browsers treat it as part of the tap
+    playSound('background')
   }
 
   return (
@@ -280,19 +459,22 @@ function MikuGame() {
       <h2 className="h">Whack-a-Miku</h2>
       <p style={{ marginBottom: 10 }}>Click Miku (+10) & Gumi (+50)! Avoid bombs! Fever mode at 100pts!</p>
       
-      <div className="game-container">
+      <div className="game-container" ref={containerRef}>
         <div className="game-stats">
           <span>Score: {score}</span>
           <span>Time: {timeLeft}s</span>
           <span>High Score: {highScore}</span>
-          {feverMode && (
+        </div>
+
+        {/* Fixed-height slot so fever text never changes the layout height */}
+        <div className="fever-slot">
+          {feverMode ? (
             <span className="fever-indicator" style={{ color: 'var(--pink)', fontWeight: 900 }}>
               🔥 FEVER x2 ({feverTimeLeft}s)
             </span>
-          )}
-          {!feverMode && feverProgress > 0 && (
+          ) : (
             <span style={{ fontSize: 12, color: 'var(--mute)' }}>
-              Fever: {feverProgress}/100
+              Fever: {Math.min(feverProgress, 100)}/100
             </span>
           )}
         </div>
@@ -316,8 +498,8 @@ function MikuGame() {
 
         <div className={`whack-grid ${feverMode ? 'fever-mode' : ''}`}>
           {moles.map((mole, index) => (
+            <div className="whack-cell" key={index}>
             <button
-              key={index}
               className={`whack-hole ${mole.active ? 'active' : ''}`}
               onClick={() => whackMiku(index)}
               type="button"
@@ -344,7 +526,7 @@ function MikuGame() {
               {mole.active && !mole.whacked && mole.type === 'bomb' && (
                 <div className="miku-popup bomb-popup">
                   <img 
-                    src="/images/game/bomb.webp" 
+                    src="/images/game/bomb.gif" 
                     alt="Bomb"
                   />
                 </div>
@@ -358,9 +540,22 @@ function MikuGame() {
                 </div>
               )}
             </button>
+            {popups.filter(pp => pp.index === index).map(pp => (
+              <span key={pp.id} className={`score-pop ${pp.kind}${feverMode ? ' fever' : ''}`} aria-hidden="true">{pp.text}</span>
+            ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Overlays: fever + score milestones (never block taps) */}
+        <div className="game-overlay" aria-hidden="true">
+          {banners.map(b => (
+            <div key={b.id} className={`gbanner gbanner-${b.kind}`}>{b.text}</div>
           ))}
         </div>
       </div>
+
+      <canvas ref={canvasRef} className="confetti-canvas" aria-hidden="true" />
     </div>
   )
 }

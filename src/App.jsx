@@ -223,7 +223,12 @@ function MikuGame() {
             {gameOver && score === highScore && score > 0 && (
               <p style={{ color: 'var(--pink)', fontWeight: 700, marginTop: 8 }}>🎉 NEW HIGH SCORE! 🎉</p>
             )}
-            <button className="pbtn" onClick={startGame} onTouchEnd={startGame}>
+            <button 
+              className="pbtn" 
+              onClick={startGame} 
+              type="button"
+              aria-label={gameOver ? 'Restart game' : 'Start game'}
+            >
               {gameOver ? 'Restart' : 'Start'}
             </button>
           </div>

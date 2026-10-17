@@ -219,7 +219,7 @@ function MikuGame() {
 
         {!gameStarted || gameOver ? (
           <div className="game-start">
-            <p>{gameOver ? `Game Over! Final Score: ${score}` : 'Click START to play'}</p>
+            <p>{gameOver ? `Game Over! Final Score: ${score}` : 'Press START to play'}</p>
             {gameOver && score === highScore && score > 0 && (
               <p style={{ color: 'var(--pink)', fontWeight: 700, marginTop: 8 }}>🎉 NEW HIGH SCORE! 🎉</p>
             )}

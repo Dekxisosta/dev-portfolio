@@ -24,7 +24,7 @@ export const AFFILIATIONS = [
   ['Roblox Scripter', '', 'roblox'],
 ]
 
-export const TABS = [['projects', 'Projects'], ['stack', 'Stack'], ['minigame', 'Minigame'], ['contact', 'Contact']]
+export const TABS = [['projects', 'Projects'], ['stack', 'Stack'], ['minigame', 'Minigame'], ['details', 'Details'], ['contact', 'Contact']]
 
 export const INTERESTS = ['digitalart', 'characterdesign', 'gamedev', 'opensource', 'indiegames']
 

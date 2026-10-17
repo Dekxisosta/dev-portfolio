@@ -284,7 +284,7 @@ function Navbar({ q, setQ, go, darkMode, toggleDarkMode }) {
   return (
     <>
       <nav className="top">
-        <button className="lnk" onClick={() => go('projects')}><Home size={14} />NXA - HOME</button>
+        <button className="lnk" onClick={() => go('projects')}><Home size={14} />Home</button>
         
         {/* Desktop links */}
         <div className="nav-links">
@@ -472,6 +472,63 @@ function Panel({ tab, sub, setSub, list, q }) {
         </div>
       )}
 
+      {/* Details Tab */}
+      {tab === 'details' && (
+        <div className="panel" key="d">
+          <h2 className="h">Details</h2>
+          
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>About Me</h3>
+            <p style={{ fontSize: 12, marginBottom: 8 }}>Hello, I'm Nel, a computer science student who writes code for contracts and draws for ego. I build web apps, bots and the occasional game, and I'm comfortable leading a small team.</p>
+            <p style={{ fontSize: 12 }}>Open to freelance art and collaboration. Replies can be slow during school weeks, but I answer everything.</p>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>Affiliations</h3>
+            {AFFILIATIONS.map(([role, org, image], idx) => (
+              <div className="fr" key={idx} style={{ paddingLeft: 0 }}>
+                {image ? (
+                  <i style={{ 
+                    backgroundImage: `url(/images/affiliations/${image}.webp)`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}>
+                  </i>
+                ) : (
+                  <i style={{ 
+                    background: 'linear-gradient(145deg, var(--pink), var(--b2))',
+                  }}>
+                    {role[0].toUpperCase()}
+                  </i>
+                )}
+                <div>
+                  <b>{role}</b>
+                  {org && <span>{org}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>Current Interests</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {INTERESTS.map((x) => (
+                <span key={x} style={{ 
+                  border: '1px solid var(--line)', 
+                  padding: '4px 10px', 
+                  fontSize: 11, 
+                  borderRadius: 4,
+                  color: 'var(--pink-d)',
+                  fontWeight: 600
+                }}>
+                  #{x}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Minigame Tab */}
       {tab === 'minigame' && <MikuGame key="mg" />}
     </>
@@ -491,6 +548,17 @@ export default function App() {
     localStorage.setItem('darkMode', JSON.stringify(darkMode))
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 960 && tab === 'details') {
+        setTab('projects')
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [tab])
 
   const toggleDarkMode = () => setDarkMode(!darkMode)
 
